@@ -496,9 +496,23 @@ fn patch(path: PathBuf) -> PathBuf {
 }
 
 impl Config2 {
-    fn load() -> Config2 {
+	fn load() -> Config2 {
+        // 必须在 load_ 之前判断文件是否原本存在：
+        // load_ 内部会把 NotFound 转成 Default，丢失“文件不存在”的信息。
+        let file_existed = Self::file().exists();
+
         let mut config = Config::load_::<Config2>("2");
         let mut store = false;
+
+        // 仅当配置文件原本不存在（首次创建）时，才补 direct-server = "Y"。
+        // 用户后续手动改成 "N" 后文件已存在，这里不会再覆盖。
+        if !file_existed && !config.options.contains_key(keys::OPTION_DIRECT_SERVER) {
+            config
+                .options
+                .insert(keys::OPTION_DIRECT_SERVER.to_owned(), "Y".to_owned());
+            store = true;
+        }
+
         if let Some(mut socks) = config.socks {
             let (password, _, store2) =
                 decrypt_str_or_original(&socks.password, PASSWORD_ENC_VERSION);
